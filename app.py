@@ -3,7 +3,7 @@ import dramatiq
 import falcon
 import pymysql
 import random
-from dramatiq.brokers.rabbitmq import RabbitmqBroker
+from dramatiq.brokers.redis import RedisBroker
 from dramatiq.results.backends import RedisBackend
 from dramatiq.results import Results
 import json
@@ -11,6 +11,11 @@ import os
 from faker import Faker
 
 fake = Faker()
+
+redis_broker = RedisBroker(url=os.getenv(
+    'REDIS_URL', 'redis://localhost:6379/0'))
+dramatiq.set_broker(redis_broker)
+redis_broker.add_middleware(Results(backend=RedisBackend()))
 
 
 def create_tables():
@@ -95,9 +100,12 @@ def seed_database_impl(num_products: int = 10, num_invoices: int = 100):
 
 
 # actor to seed DB in background
-@dramatiq.actor
+@dramatiq.actor(actor_name="seed_database", queue_name="default")
 def seed_database(num_products: int = 10, num_invoices: int = 100):
+    print(
+        f"[seed_database] Starting seeding with {num_products} products and {num_invoices} invoices")
     seed_database_impl(num_products, num_invoices)
+    print("[seed_database] Seeding completed successfully")
 
 
 def get_connection():
@@ -108,48 +116,6 @@ def get_connection():
         database=os.getenv("DB_NAME", "product_revenue"),
         cursorclass=pymysql.cursors.DictCursor,
     )
-
-
-# def fake_product_data(num_product=10):
-#     products = []
-#     for _ in range(num_product):
-#         product = {
-#             'product_id': fake.uuid4(),
-#             'invoice_id': fake.uuid4(),
-#             'invoice_date': fake.date_time_this_year(),
-#             'customer_state': fake.state(),
-#             'quantity_sold': fake.random_number(digits=3)
-#         }
-#         products.append(product)
-#     return products
-
-
-# def fake_sale_data(num_orders=100, product_data=None):
-#     if product_data is None:
-#         product_data = fake_product_data(num_product=10)
-
-#     orders = []
-#     product_ids = [product['product_id'] for product in product_data]
-#     for _ in range(num_orders):
-#         order_date = fake.date_between(start_date='-1y', end_date='today')
-#         items_in_order = []
-#         for _ in range(fake.random.randint(1, 5)):
-#             product_id = random.choice(product_ids)
-#             quantity = fake.random.randint(1, 10)
-#             items_in_order.append({
-#                 'product_id': product_id,
-#                 'quantity': quantity
-#             })
-#         order = {
-#             'order_id': fake.unique.uuid4(),
-#             'customer_id': fake.unique.uuid4(),
-#             'order_date': order_date.strftime('%Y-%m-%d'),
-#             'total_amount': round(random.uniform(10.0, 1000.0), 2),
-#             'items': items_in_order,
-#             'status': fake.random.choice(['pending', 'shipped', 'delivered', 'cancelled'])
-#         }
-#         orders.append(order)
-#     return orders
 
 
 def get_product_revenue_report():
@@ -217,20 +183,6 @@ class SeedResource:
         resp.media = {"status": "accepted", "message": "seeding database"}
 
 
-class SeedSyncResource:
-    def on_post(self, req, resp):
-        num_products = int(req.get_param("num_products") or 10)
-        num_invoices = int(req.get_param("num_invoices") or 100)
-        try:
-            seed_database_impl(num_products, num_invoices)
-            resp.status = falcon.HTTP_200
-            resp.media = {"status": "ok",
-                          "message": "Database seeded successfully"}
-        except Exception as e:
-            resp.status = falcon.HTTP_500
-            resp.media = {"status": "error", "message": str(e)}
-
-
 class ProductRevenueResource:
     def on_get(self, req, resp):
         resp.media = {"data": get_product_revenue_report()}
@@ -262,14 +214,9 @@ things = ThingsResource()
 
 app.add_route('/things', things)
 
-rabbitmq_broker = RabbitmqBroker(url=os.getenv(
-    'RABBITMQ_URL', 'amqp://guest:guest@localhost:5672/'))
-dramatiq.set_broker(rabbitmq_broker)
-
 
 app.add_route('/init-db', InitDBResource())
 app.add_route('/seed', SeedResource())
-app.add_route('/seed-sync', SeedSyncResource())
 app.add_route('/reports/product-revenue', ProductRevenueResource())
 app.add_route('/reports/state-sales', StateSalesResource())
 
