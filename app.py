@@ -101,7 +101,6 @@ def seed_database(num_products: int = 10, num_invoices: int = 100):
 
 
 def get_connection():
-    """Return a PyMySQL connection using env vars or sensible localhost defaults."""
     return pymysql.connect(
         host=os.getenv("DB_HOST", "localhost"),
         user=os.getenv("DB_USER", "root"),
