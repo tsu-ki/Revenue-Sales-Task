@@ -1,0 +1,28 @@
+1. Products Table
+Stores details of each product.
+ 
+Column Name	Data Type	Constraints	Description
+ProductID	INT	PRIMARY KEY, AUTO_INCREMENT	Unique product identifier
+ProductName	VARCHAR(100)	NOT NULL	Name of the product
+Category	VARCHAR(50)	NULL	Category of the product
+UnitPrice	DECIMAL(10,2)	NOT NULL	Price per unit of the product
+State	VARCHAR(50)	NOT NULL	State where product is sold
+
+2. Invoices Table
+Stores details of sales transactions.
+ 
+Column Name	Data Type	Constraints	Description
+InvoiceID	INT	PRIMARY KEY, AUTO_INCREMENT	Unique invoice identifier
+ProductID	INT	FOREIGN KEY REFERENCES Products(ProductID)	Product sold
+Quantity	INT	NOT NULL	Quantity sold
+InvoiceDate	DATE	NOT NULL	Date of sale
+CustomerState	VARCHAR(50)	NOT NULL	State of the customer
+
+
+1. Product-wise Revenue Report
+Purpose: Shows how much total revenue each product has generated.
+Logic: Multiply the quantity sold of each product by its unit price, sum it up for that product, and list the results for all products.
+2. State-wise Sales Report
+Purpose: Shows total sales revenue grouped by customer state.
+Logic: Group sales by the state where the customer purchased the product, then sum the revenue for each state.
+ 
